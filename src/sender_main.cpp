@@ -35,16 +35,6 @@ queue<Packet> packet_buffer;
 
 queue<Packet> waiting_buffer;
 
-
-/*
-int LastByteAcked = 0;
-int LastByteSent = 0;
-int LastByteWritten = 0;
-unsigned int next_sequence_number = 0;
-unsigned int ack_num_temp = 0;
-unsigned int effective_window = MAX_SEQUENCE_NUMBER;
-*/
-
 // GLOBAL
 unsigned long long int num_bytes;
 unsigned long long int bytes;
@@ -82,75 +72,6 @@ void diep(char *s) {
 }
 
 
-/*
-// function for the 3-way handshake
-int handshake(){
-
-    // SYN 
-    Packet syn;
-    srand(5);
-    syn.sequence_number = rand();
-
-    printf("sequence number x = %d \n", syn.sequence_number);
-
-    // send packet to receiver
-    if(sendto(s, &syn, sizeof(Packet), 0, (struct sockaddr*) &si_other, slen) == -1){
-        
-        diep("Error with sending a packet! \n");
-        return -1;
-    
-    }
-
-    printf("First send successful \n");
-
-    Packet syn_ack;
-//    if(recvfrom(s, &syn_ack, sizeof(Packet), 0, (struct sockaddr*) &si_other, &slen) == -1){
-//        diep("Error with receiving a packet! \n");
-//        return -1;
-//    }
-    
-
-    printf("Receive SYN-ACK successful \n");
-
-    // check if receiver set sequence number
-    if(syn_ack.sequence_number){
-
-        Packet ack;
-        
-        // check if AckNum is sequence number + 1
-        if(syn_ack.AckNum != (syn.sequence_number + 1)){
-            printf("AckNum received: %d \n", syn_ack.AckNum);
-            printf("AckNum should be: %d \n", syn.sequence_number + 1);
-            printf("Incorrect Ack value received from receiver \n");
-            return -1;
-        }
-
-        // set AckNUm to y+1
-        ack.AckNum = syn_ack.sequence_number + 1;
-        printf("Sending AckNum y+1: %d \n", ack.AckNum);
-        // ack_num_temp = ack.AckNum;
-
-        printf("Advertised Window = %d \n", syn_ack.window_size);
-        ack.window_size = effective_window; 
-
-        // save expected sequence number for when we start sending data later
-        next_sequence_number = syn_ack.AckNum;
-        printf("next sequence number set to: %d \n", next_sequence_number);
-    
-        if(sendto(s, &ack, sizeof(Packet), 0, (struct sockaddr*) &si_other, slen) == -1){
-            diep("Error with sending a packet! \n");
-            return -1;
-        }   
-        printf("Second send successful \n");
-    }
-    else{
-        printf("Expected syn-ack packet no receiver... \n");
-        return -1;
-    }
-    return 0;
-}
-*/
-
 void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* filename, unsigned long long int bytesToTransfer) {
     //Open the file
     
@@ -161,9 +82,6 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
     }
 
     num_bytes = bytesToTransfer;
-
-	/* Determine how many bytes to transfer */
-
 
     // initializing the socket 
     slen = sizeof (si_other);
@@ -178,18 +96,6 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
         fprintf(stderr, "inet_aton() failed\n");
         exit(1);
     }
-
-    /*
-    // do 3-way handshake with receiver
-    int handshake_flag = 0;
-    handshake_flag = handshake();
-    if(handshake_flag == -1){
-        printf("Handshake failed. No connection established. \n");
-        exit(1);
-    }
-    printf("Handshake succeeded on sender! \n");
-    */
-
 
     // fill buffer 
     populate_buf(SENDER_BUFFER_SIZE);
@@ -206,7 +112,6 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
         // check if we received a packet
         if((bytes = recvfrom(s, sender_window, sizeof(Packet), 0, NULL, NULL)) == -1){
 
-            // might not need this!!!
             if(errno != EAGAIN || errno != EWOULDBLOCK){
                 perror("Couldn't get ack \n");
                 exit(1);
@@ -224,7 +129,6 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
 
             }
 
-            // handle congestion control here!!!
             congestion(true, false);
 
         }
@@ -238,7 +142,6 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
 
                 if(packet.AckNum == waiting_buffer.front().sequence_number){
 
-                    // handle congestion control here!!!
                     congestion(false, false);
 
                     if(duplicate_acks == 3){
@@ -246,8 +149,6 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
                         ssthread = cwnd/2.0;
                         cwnd = ssthread + 3;
                         duplicate_acks = 0;
-
-                        // congestion control state - fast recovery HERE!!!
 
                         // resend duplicate packets
                         memcpy(sender_window, &waiting_buffer.front(), sizeof(Packet));
@@ -259,14 +160,11 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
 
                         }
 
-                        // there were 3 duplicate acks so we resend
-
                     }
                 }
                 else if(packet.AckNum > waiting_buffer.front().sequence_number){
                     while(!waiting_buffer.empty() && waiting_buffer.front().sequence_number < packet.AckNum){
 
-                        // handle congestion control stuff here!!!
                         congestion(false, true);
                         
                         waiting_buffer.pop();
@@ -320,7 +218,6 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
     }
 
 	/* Send data and receive acknowledgements on s*/
-
     // close socket 
     printf("Closing the socket\n");
     close(s);
@@ -330,9 +227,6 @@ void reliablyTransfer(char* hostname, unsigned short int hostUDPport, char* file
 
 }
 
-/*
- * 
- */
 int main(int argc, char** argv) {
 
     unsigned short int udpPort;
@@ -345,10 +239,7 @@ int main(int argc, char** argv) {
     udpPort = (unsigned short int) atoi(argv[2]);
     numBytes = atoll(argv[4]);
 
-
-
     reliablyTransfer(argv[1], udpPort, argv[3], numBytes);
-
 
     return (EXIT_SUCCESS);
 }
@@ -400,9 +291,6 @@ void congestion(bool timeout_happened, bool acknowledgment){
             // check if our control window is greater than or equal to our threshhold
             if(cwnd >= ssthread){
                 
-                // printf("Congestion Window is: %f", cwnd);
-
-
                 // go to CONGESTION STATE 
                 curr_congestion_state = CONGESTION_STATE;
 
@@ -440,8 +328,6 @@ void congestion(bool timeout_happened, bool acknowledgment){
                 // reset number of duplicate acks
                 duplicate_acks = 0;
 
-                // printf("Congestion Window is: %f", cwnd);
-
                 // go to CONGESTION STATE next
                 curr_congestion_state = CONGESTION_STATE;
                 
@@ -468,8 +354,6 @@ void congestion(bool timeout_happened, bool acknowledgment){
 
                 // reset number of duplicate acks
                 duplicate_acks = 0;
-
-                // printf("Congestion Window is: %f", cwnd);
 
                 // go to SLOW START state next
                 curr_congestion_state = SLOW_START_STATE;
@@ -548,16 +432,12 @@ void send_packets(int socket){
 
         }
 
-        // printf("congestion window: %f \n", cwnd);
-
         return;
 
     }
 
     // check if we have packets to send or not
     if(packet_buffer.empty()){
-
-        // printf("No packets left to send. \n");
 
         return;
 
@@ -577,8 +457,6 @@ void send_packets(int socket){
             exit(1);
             
         }
-
-        // printf("congestion window: %f \n", cwnd);
 
         // put packet that was just sent into the waiting buffer (queue)
         waiting_buffer.push(packet_buffer.front());

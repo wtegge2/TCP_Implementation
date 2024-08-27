@@ -16,7 +16,6 @@
 
 char receiver_buffer[sizeof(Packet)];
 
-// TA SAID YOU NEEDED TO USE THIS FOR RECEIVER!
 struct sockaddr_in address;
 socklen_t address_len;
 
@@ -24,93 +23,10 @@ struct sockaddr_in si_me, si_other;
 int s, slen;
 int rec_bytes;
 
-// helper function definitions
-
-
 void diep(char *s) {
     perror(s);
     exit(1);
 }
-
-/*
-int receiver_handshake(){
-
-    Packet syn;
-
-    memset((char *) &address, 0, sizeof (address));
-
-    if(recvfrom(s, &syn, sizeof(Packet), 0, (struct sockaddr*) &si_other, (socklen_t*)&slen) == -1){
-        diep("Error with receiving a packet! \n");
-        return -1;
-    }
-
-    printf("len: %d \n", address_len);
-    printf("Syn value: %d \n", syn.sequence_number);
-
-    // check if sequence number is set in received syn packet
-    if(syn.sequence_number){
-
-        Packet syn_ack;
-        srand(0);
-        syn_ack.sequence_number = rand();   // generate random y
-        syn_ack.AckNum = syn.sequence_number + 1;
-        
-        syn_ack.window_size = advertised_window;
-
-
-        printf("Sequence number y = %d \n", syn_ack.sequence_number);
-        printf("Sending AckNum back: %d \n", syn_ack.AckNum);
-        printf("Advertised Window Size = %d \n", syn_ack.window_size);
-
-        
-        if(sendto(s, &syn_ack, sizeof(Packet), 0, (struct sockaddr*) &si_other, slen) == -1){
-            diep("Error with sending a packet! \n");
-            return -1;
-        }
-
-        // save expected sequence number for later
-        // LEFT OFF HERE WORKING ON THE RECIEVER CODE!!! FIGURE OUT HOW TO SET THESE VALUES
-        expected_sequence_number = syn_ack.AckNum;  // saving x+1
-        // rec_acknum_temp = syn_ack.sequence_number;  // saving y
-
-        printf("HERE \n");
-        Packet ack;
-        
-//        if(recvfrom(s, &ack, sizeof(Packet), 0, (struct sockaddr*) &address, &address_len) == -1){
-//            perror("Error Receiving \n");
-//            diep("Error with receiving a packet! \n");
-//            return -1;
-//        }
-        
-        if(recvfrom(s, &ack, sizeof(Packet), 0, (struct sockaddr*) &si_other, (socklen_t*)&slen) == -1){
-            perror("Error Receiving \n");
-            diep("Error with receiving a packet! \n");
-            return -1;
-
-        }
-
-        if(ack.AckNum != (syn_ack.sequence_number + 1)){
-            printf("AckNum received: %d \n", ack.AckNum);
-            printf("AckNum should be: %d \n", syn_ack.sequence_number + 1);
-            printf("Incorrect Ack value received from sender \n");
-            return -1;
-        }
-
-        // NEED TO DO ANYTHING AFTER CONNECTION IS ESTABLISHED???
-
-        printf("Received 2nd packet... \n");
-        printf("Effective window = %d \n", ack.window_size);
-
-    }
-    else{
-        printf("Expected SYN not received... \n");
-        return -1;
-    }
-
-    return 0;
-}
-*/
-
 
 void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
     
@@ -135,18 +51,6 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
         printf("Error opening file to write \n");
         exit(1);
     }
-
-/*
-    // do 3-way handshake with sender
-    int handshake_flag = 0;
-    handshake_flag = receiver_handshake();
-
-    if(handshake_flag == -1){
-        printf("Handshake failed. No connection established. \n");
-        exit(1);
-    }
-    printf("Handshake succeeded on receiever! \n");
-*/
 
     char packet_buffer[RECEIVER_BUFFER_SIZE];
     int next = 0;
@@ -179,9 +83,6 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
 
         memcpy(&packet, receiver_buffer, sizeof(Packet));
         
-        // printf("Received packet with sequence number: %d \n", packet.sequence_number);
-        // printf("Packet type is: %d \n", packet.type);
-
         // check if DATA packet
         if(packet.type == DATA){
 
@@ -193,8 +94,6 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
 
                 fwrite(&packet_buffer[temp*SIZE_OF_DATA], sizeof(char), packet.length, fp);
 
-                // printf("Writing packet with sequence number: %d \n", packet.sequence_number);
-                
                 next = next + 1;
 
                 temp = (temp + 1) % TOTAL;
@@ -203,8 +102,6 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
                 while(already_acked[temp] == 1){
 
                     fwrite(&packet_buffer[temp*SIZE_OF_DATA], sizeof(char), size[temp], fp);
-
-                    // printf("Index: %d \n", temp);
 
                     already_acked[temp] = 0;
 
@@ -215,7 +112,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
                 }
             }
 
-            // if this packet is out of order / early, then putit into the buffer
+            // if this packet is out of order / early, then put it into the buffer
             else if(packet.sequence_number > next){
 
                 int temp_2 = (temp + packet.sequence_number - next) % TOTAL;
@@ -242,9 +139,6 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
             memcpy(receiver_buffer, &ack, sizeof(Packet));
 
             sendto(s, receiver_buffer, sizeof(Packet), 0, (struct sockaddr *)&address, address_len);
-
-            // printf("Sent ack packet with ackNum: %d \n", ack.AckNum);
-
 
         }
         // if not DATA packet, then check if its a packet to end the communication
@@ -277,9 +171,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
 
 }
 
-/*
- * 
- */
+
 int main(int argc, char** argv) {
 
     unsigned short int udpPort;
